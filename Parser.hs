@@ -1,0 +1,97 @@
+module Parser where
+
+import AST
+import Data.Functor (($>))
+import Text.Parsec
+import Text.Parsec.String
+
+letKeyword :: String
+letKeyword = "let"
+
+inKeyword = "in"
+
+keywords :: [String]
+keywords = [letKeyword]
+
+numberLiteral :: Parser Expression
+numberLiteral = NumberLiteral . read <$> many1 digit
+
+stringLiteral :: Parser Expression
+stringLiteral =
+  StringLiteral
+    <$> between
+      (char '"')
+      (char '"')
+      (many $ noneOf "\"")
+
+boolLiteral :: Parser Expression
+boolLiteral = true <|> false
+  where
+    true = keyword "true" $> BoolLiteral True
+    false = keyword "false" $> BoolLiteral False
+
+variableString :: Parser String
+variableString = do
+  firstChar <- identifierFirstChar
+  rest <- many identifierChar
+  let s = firstChar : rest
+  if s `elem` keywords
+    then fail $ "illegal variable name: " ++ s
+    else return s
+
+variable :: Parser Expression
+variable = Variable <$> variableString
+
+letExpression :: Parser Expression
+letExpression = do
+  _ <- keyword letKeyword
+  _ <- many1 whitespace
+  b <- sepBy1 binding (many1 newline)
+  _ <- many1 whitespace
+  _ <- keyword inKeyword
+  _ <- many1 whitespace
+  e <- expression
+  return $ Let b e
+  where
+    binding = do
+      v <- variableString
+      _ <- many whitespace
+      _ <- char '='
+      _ <- many whitespace
+      e <- expression
+      return $ Binding v e
+
+function :: Parser Expression
+function = do
+  _ <- char '\\'
+  _ <- many whitespace
+  paramNames <- sepEndBy1 variableString (many1 whitespace)
+  _ <- string "->"
+  _ <- many whitespace
+  e <- expression
+  return $ Function paramNames e
+
+expression :: Parser Expression
+expression =
+  choice
+    [ numberLiteral,
+      boolLiteral,
+      variable,
+      letExpression,
+      function
+    ]
+
+identifierFirstChar :: Parser Char
+identifierFirstChar = oneOf ['a' .. 'z']
+
+identifierChar :: Parser Char
+identifierChar = oneOf $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9']
+
+anyKeyword :: Parser ()
+anyKeyword = choice (string <$> keywords) $> ()
+
+keyword :: String -> Parser ()
+keyword k = string k *> notFollowedBy identifierChar
+
+whitespace :: Parser ()
+whitespace = (space <|> newline) $> ()
