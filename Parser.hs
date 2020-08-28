@@ -8,10 +8,34 @@ import Text.Parsec.String
 letKeyword :: String
 letKeyword = "let"
 
+inKeyword :: String
 inKeyword = "in"
 
+ifKeyword :: String
+ifKeyword = "if"
+
+thenKeyword :: String
+thenKeyword = "then"
+
+elseKeyword :: String
+elseKeyword = "else"
+
+trueKeyword :: String
+trueKeyword = "true"
+
+falseKeyword :: String
+falseKeyword = "false"
+
 keywords :: [String]
-keywords = [letKeyword]
+keywords =
+  [ letKeyword,
+    inKeyword,
+    ifKeyword,
+    thenKeyword,
+    elseKeyword,
+    trueKeyword,
+    falseKeyword
+  ]
 
 numberLiteral :: Parser Expression
 numberLiteral = NumberLiteral . read <$> many1 digit
@@ -27,8 +51,8 @@ stringLiteral =
 boolLiteral :: Parser Expression
 boolLiteral = true <|> false
   where
-    true = keyword "true" $> BoolLiteral True
-    false = keyword "false" $> BoolLiteral False
+    true = keyword trueKeyword $> BoolLiteral True
+    false = keyword falseKeyword $> BoolLiteral False
 
 variableString :: Parser String
 variableString = do
@@ -71,15 +95,35 @@ function = do
   e <- expression
   return $ Function paramNames e
 
+functionApplication :: Parser Expression
+functionApplication = chainl1 expression op
+  where
+    op = do
+      _ <- char ' '
+      return FunctionApplication
+
+ifThenElse :: Parser Expression
+ifThenElse = do
+  _ <- keyword ifKeyword
+  _ <- many1 whitespace
+  predicate <- expression
+  _ <- many1 whitespace
+  consequent <- expression
+  _ <- many1 whitespace
+  alternate <- expression
+  return $ IfThenElse predicate consequent alternate
+
 expression :: Parser Expression
-expression =
-  choice
-    [ numberLiteral,
-      boolLiteral,
-      variable,
-      letExpression,
-      function
-    ]
+expression = choice $ try <$> (functionApplication : nonFunctionApplicationExpressions)
+
+nonFunctionApplicationExpressions :: [Parser Expression]
+nonFunctionApplicationExpressions =
+  [ numberLiteral,
+    boolLiteral,
+    variable,
+    letExpression,
+    function
+  ]
 
 identifierFirstChar :: Parser Char
 identifierFirstChar = oneOf ['a' .. 'z']
@@ -95,3 +139,6 @@ keyword k = string k *> notFollowedBy identifierChar
 
 whitespace :: Parser ()
 whitespace = (space <|> newline) $> ()
+--   f x  y
+--  (f x) y
+-- ((f x) y)
