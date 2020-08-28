@@ -3,7 +3,7 @@ module JS where
 import Data.List (intercalate)
 
 data Expression
-  = NumberLiteral Int
+  = NumberLiteral Double
   | StringLiteral String
   | BoolLiteral Bool
   | Variable String
@@ -45,6 +45,9 @@ exprToString expr = case expr of
 statementToString :: Statement -> String
 statementToString statement = case statement of
   Let name value -> "const " ++ name ++ " = " ++ exprToString value ++ ";"
+
+moduleToString :: Module -> String
+moduleToString (Module bindings) = intercalate "\n\n" $ statementToString <$> bindings
 
 wrapIn :: String -> String -> String -> String
 wrapIn open close s = open ++ s ++ close

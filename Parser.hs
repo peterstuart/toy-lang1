@@ -2,96 +2,85 @@ module Parser where
 
 import AST
 import Data.Functor (($>))
+import Data.Functor.Identity (Identity)
 import Text.Parsec
+import Text.Parsec.Expr
 import Text.Parsec.String
+import qualified Text.Parsec.Token as Token
 
-letKeyword :: String
-letKeyword = "let"
+languageDef :: Token.LanguageDef ()
+languageDef =
+  Token.LanguageDef
+    { Token.commentStart = "/*",
+      Token.commentEnd = "*/",
+      Token.commentLine = "//",
+      Token.nestedComments = True,
+      Token.identStart = letter,
+      Token.identLetter = alphaNum,
+      Token.opStart = oneOf ":!#$%&*+./<=>?@\\^|-~",
+      Token.opLetter = oneOf ":!#$%&*+./<=>?@\\^|-~",
+      Token.reservedNames = ["let", "in", "if", "then", "else", "true", "false"],
+      Token.reservedOpNames = ["", "=", "\\", "->"],
+      Token.caseSensitive = True
+    }
 
-inKeyword :: String
-inKeyword = "in"
+lexer :: Token.TokenParser ()
+lexer = Token.makeTokenParser languageDef
 
-ifKeyword :: String
-ifKeyword = "if"
+reserved :: String -> Parser ()
+reserved = Token.reserved lexer
 
-thenKeyword :: String
-thenKeyword = "then"
+reservedOp :: String -> Parser ()
+reservedOp = Token.reservedOp lexer
 
-elseKeyword :: String
-elseKeyword = "else"
+identifier :: Parser String
+identifier = Token.identifier lexer
 
-trueKeyword :: String
-trueKeyword = "true"
+parens :: Parser a -> Parser a
+parens = Token.parens lexer
 
-falseKeyword :: String
-falseKeyword = "false"
+commaSep1 :: Parser a -> Parser [a]
+commaSep1 = Token.commaSep1 lexer
 
-keywords :: [String]
-keywords =
-  [ letKeyword,
-    inKeyword,
-    ifKeyword,
-    thenKeyword,
-    elseKeyword,
-    trueKeyword,
-    falseKeyword
-  ]
+semiSep1 :: Parser a -> Parser [a]
+semiSep1 = Token.semiSep1 lexer
 
 numberLiteral :: Parser Expression
-numberLiteral = NumberLiteral . read <$> many1 digit
+numberLiteral =
+  NumberLiteral . either fromInteger id
+    <$> Token.naturalOrFloat lexer
 
 stringLiteral :: Parser Expression
-stringLiteral =
-  StringLiteral
-    <$> between
-      (char '"')
-      (char '"')
-      (many $ noneOf "\"")
+stringLiteral = StringLiteral <$> Token.stringLiteral lexer
 
 boolLiteral :: Parser Expression
 boolLiteral = true <|> false
   where
-    true = keyword trueKeyword $> BoolLiteral True
-    false = keyword falseKeyword $> BoolLiteral False
-
-variableString :: Parser String
-variableString = do
-  firstChar <- identifierFirstChar
-  rest <- many identifierChar
-  let s = firstChar : rest
-  if s `elem` keywords
-    then fail $ "illegal variable name: " ++ s
-    else return s
+    true = reserved "true" $> BoolLiteral True
+    false = reserved "false" $> BoolLiteral False
 
 variable :: Parser Expression
-variable = Variable <$> variableString
+variable = Variable <$> identifier
 
 letExpression :: Parser Expression
 letExpression = do
-  _ <- keyword letKeyword
-  _ <- many1 whitespace
-  b <- sepBy1 binding (many1 newline)
-  _ <- many1 whitespace
-  _ <- keyword inKeyword
-  _ <- many1 whitespace
+  _ <- reserved "let"
+  b <- commaSep1 binding
+  _ <- reserved "in"
   e <- expression
   return $ Let b e
   where
     binding = do
-      v <- variableString
-      _ <- many whitespace
-      _ <- char '='
-      _ <- many whitespace
+      v <- identifier
+      _ <- reservedOp "="
       e <- expression
       return $ Binding v e
 
 function :: Parser Expression
 function = do
-  _ <- char '\\'
-  _ <- many whitespace
-  paramNames <- sepEndBy1 variableString (many1 whitespace)
-  _ <- string "->"
-  _ <- many whitespace
+  _ <- reservedOp "\\"
+  paramNames <- many1 identifier
+  _ <- reservedOp "->"
   e <- expression
   return $ Function paramNames e
 
@@ -104,41 +93,43 @@ functionApplication = chainl1 expression op
 
 ifThenElse :: Parser Expression
 ifThenElse = do
-  _ <- keyword ifKeyword
-  _ <- many1 whitespace
+  _ <- reserved "if"
   predicate <- expression
-  _ <- many1 whitespace
+  _ <- reserved "then"
   consequent <- expression
-  _ <- many1 whitespace
+  _ <- reserved "else"
   alternate <- expression
   return $ IfThenElse predicate consequent alternate
 
+term :: Parser Expression
+term =
+  choice $
+    try
+      <$> [ numberLiteral,
+            boolLiteral,
+            variable,
+            letExpression,
+            function,
+            ifThenElse,
+            parens expression
+          ]
+
+table :: OperatorTable String () Identity Expression
+table = [[binary "" FunctionApplication AssocLeft]]
+  where
+    binary name fun = Infix (do reservedOp name; return fun)
+
 expression :: Parser Expression
-expression = choice $ try <$> (functionApplication : nonFunctionApplicationExpressions)
+expression = buildExpressionParser table term
 
-nonFunctionApplicationExpressions :: [Parser Expression]
-nonFunctionApplicationExpressions =
-  [ numberLiteral,
-    boolLiteral,
-    variable,
-    letExpression,
-    function
-  ]
+moduleParser :: Parser Module
+moduleParser = Module <$> semiSep1 binding
+  where
+    binding = do
+      name <- identifier
+      _ <- reservedOp "="
+      e <- expression
+      return (name, e)
 
-identifierFirstChar :: Parser Char
-identifierFirstChar = oneOf ['a' .. 'z']
-
-identifierChar :: Parser Char
-identifierChar = oneOf $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9']
-
-anyKeyword :: Parser ()
-anyKeyword = choice (string <$> keywords) $> ()
-
-keyword :: String -> Parser ()
-keyword k = string k *> notFollowedBy identifierChar
-
-whitespace :: Parser ()
-whitespace = (space <|> newline) $> ()
---   f x  y
---  (f x) y
--- ((f x) y)
+parseModule :: String -> Either ParseError Module
+parseModule = runParser moduleParser () "stdin"

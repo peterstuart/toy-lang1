@@ -5,7 +5,7 @@ data Binding
   deriving (Eq, Show)
 
 data Expression
-  = NumberLiteral Int
+  = NumberLiteral Double
   | StringLiteral String
   | BoolLiteral Bool
   | Variable String

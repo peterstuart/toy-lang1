@@ -12,5 +12,7 @@ pkgs.stdenv.mkDerivation {
     haskellPackages.ghcid
     haskellPackages.hlint
     haskellPackages.ormolu
+    pkgs.nodejs-12_x
+    (pkgs.yarn.override { nodejs = pkgs.nodejs-12_x; })
   ];
 }
