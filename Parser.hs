@@ -84,13 +84,6 @@ function = do
   e <- expression
   return $ Function paramNames e
 
-functionApplication :: Parser Expression
-functionApplication = chainl1 expression op
-  where
-    op = do
-      _ <- char ' '
-      return FunctionApplication
-
 ifThenElse :: Parser Expression
 ifThenElse = do
   _ <- reserved "if"
