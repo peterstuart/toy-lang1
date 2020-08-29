@@ -1,6 +1,6 @@
 { mkDerivation, base, stdenv }:
 mkDerivation {
-  pname = "haskell-test";
+  pname = "toy-lang1";
   version = "0.1.0.0";
   src = ./.;
   isLibrary = false;
