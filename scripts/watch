@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+ls "$1" | entr ./scripts/compile "$1" "$2"
