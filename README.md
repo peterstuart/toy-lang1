@@ -11,11 +11,11 @@ Run `nix-shell` to set up the development environment.
 Compile a file:
 
 ```bash
-./scripts/compile.sh input.tl output.js
+./scripts/compile input.tl output.js
 ```
 
 Watch a file:
 
 ```bash
-./scripts/watch.sh input.tl output.js
+./scripts/watch input.tl output.js
 ```

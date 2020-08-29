@@ -1,0 +1,4 @@
+#!/usr/bin/env nix-shell
+#!nix-shell ../shell.nix -i bash
+
+cat "$1" | cabal run --verbose=0 > "$2" && prettier --write "$2" && eslint --fix "$2"
