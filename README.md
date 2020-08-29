@@ -8,6 +8,8 @@ Run `nix-shell` to set up the development environment.
 
 ## Scripts
 
+Run `nix-build release.nix` and then...
+
 Compile a file:
 
 ```bash
