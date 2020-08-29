@@ -10,6 +10,7 @@ pkgs.stdenv.mkDerivation {
   name = "shell";
   buildInputs = project.env.nativeBuildInputs ++ [
     pkgs.cabal2nix
+    pkgs.entr
     haskellPackages.cabal-install
     haskellPackages.ghcid
     haskellPackages.hlint
