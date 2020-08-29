@@ -19,7 +19,10 @@ extra-source-files:  CHANGELOG.md
 
 executable toy-lang-1
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:       AST
+                     , JS
+                     , Compiler
+                     , Parser
   -- other-extensions:
   build-depends:       base >=4.12 && <4.13
                      , parsec
