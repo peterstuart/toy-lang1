@@ -100,6 +100,7 @@ term =
     try
       <$> [ numberLiteral,
             boolLiteral,
+            stringLiteral,
             variable,
             letExpression,
             function,
