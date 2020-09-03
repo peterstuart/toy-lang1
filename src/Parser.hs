@@ -1,96 +1,115 @@
 module Parser where
 
 import AST
+import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor (($>))
 import Data.Functor.Identity (Identity)
-import Text.Parsec
-import Text.Parsec.Expr
-import Text.Parsec.String
-import qualified Text.Parsec.Token as Token
+import Data.Void (Void)
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as Lexer
 
-languageDef :: Token.LanguageDef ()
-languageDef =
-  Token.LanguageDef
-    { Token.commentStart = "/*",
-      Token.commentEnd = "*/",
-      Token.commentLine = "//",
-      Token.nestedComments = True,
-      Token.identStart = letter,
-      Token.identLetter = alphaNum,
-      Token.opStart = oneOf ":!#$%&*+./<=>?@\\^|-~",
-      Token.opLetter = oneOf ":!#$%&*+./<=>?@\\^|-~",
-      Token.reservedNames = ["let", "in", "if", "then", "else", "true", "false"],
-      Token.reservedOpNames = ["", "=", "\\", "->"],
-      Token.caseSensitive = True
-    }
+type Parser = Parsec Void String
 
-lexer :: Token.TokenParser ()
-lexer = Token.makeTokenParser languageDef
+spaceConsumer :: Parser ()
+spaceConsumer = Lexer.space space1 empty empty
 
-reserved :: String -> Parser ()
-reserved = Token.reserved lexer
+lexeme :: Parser a -> Parser a
+lexeme = Lexer.lexeme spaceConsumer
 
-reservedOp :: String -> Parser ()
-reservedOp = Token.reservedOp lexer
-
-identifier :: Parser String
-identifier = Token.identifier lexer
+symbol :: String -> Parser String
+symbol = Lexer.symbol spaceConsumer
 
 parens :: Parser a -> Parser a
-parens = Token.parens lexer
+parens = between (symbol "(") (symbol ")")
 
-commaSep1 :: Parser a -> Parser [a]
-commaSep1 = Token.commaSep1 lexer
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
 
-semiSep1 :: Parser a -> Parser [a]
-semiSep1 = Token.semiSep1 lexer
+angles :: Parser a -> Parser a
+angles = between (symbol "<") (symbol ">")
 
-numberLiteral :: Parser Expression
-numberLiteral =
-  NumberLiteral . either fromInteger id
-    <$> Token.naturalOrFloat lexer
+brackets :: Parser a -> Parser a
+brackets = between (symbol "[") (symbol "]")
+
+semicolon :: Parser String
+semicolon = symbol ";"
+
+comma :: Parser String
+comma = symbol ","
+
+colon :: Parser String
+colon = symbol ":"
+
+dot :: Parser String
+dot = symbol "."
 
 stringLiteral :: Parser Expression
-stringLiteral = StringLiteral <$> Token.stringLiteral lexer
+stringLiteral = StringLiteral <$> (char '"' *> manyTill Lexer.charLiteral (char '"'))
+
+float :: Parser Double
+float = lexeme Lexer.float
+
+integer :: Parser Int
+integer = lexeme Lexer.decimal
+
+numberLiteral :: Parser Expression
+numberLiteral = NumberLiteral <$> (try float <|> (fromIntegral <$> integer))
+
+reserved :: [String]
+reserved = ["let", "in", "if", "then", "else", "true", "false"]
+
+identifier :: Parser String
+identifier = do
+  name <- lexeme ((:) <$> letterChar <*> many alphaNumChar)
+  if name `elem` reserved
+    then fail "fail!"
+    else return name
+
+commaSep1 :: Parser a -> Parser [a]
+commaSep1 p = p `sepBy1` comma
+
+semiSep1 :: Parser a -> Parser [a]
+semiSep1 p = p `sepBy1` semicolon
 
 boolLiteral :: Parser Expression
 boolLiteral = true <|> false
   where
-    true = reserved "true" $> BoolLiteral True
-    false = reserved "false" $> BoolLiteral False
+    true = symbol "true" $> BoolLiteral True
+    false = symbol "false" $> BoolLiteral False
 
 variable :: Parser Expression
 variable = Variable <$> identifier
 
 letExpression :: Parser Expression
 letExpression = do
-  _ <- reserved "let"
+  _ <- symbol "let"
   b <- commaSep1 binding
-  _ <- reserved "in"
+  _ <- symbol "in"
   e <- expression
   return $ Let b e
   where
     binding = do
       v <- identifier
-      _ <- reservedOp "="
+      _ <- symbol "="
       e <- expression
       return $ Binding v e
 
 function :: Parser Expression
 function = do
-  _ <- reservedOp "\\"
-  paramNames <- many1 identifier
-  _ <- reservedOp "->"
+  _ <- symbol "\\"
+  paramNames <- many identifier
+  _ <- symbol "->"
   e <- expression
   return $ Function paramNames e
 
 ifThenElse :: Parser Expression
 ifThenElse = do
-  _ <- reserved "if"
+  _ <- symbol "if"
   predicate <- expression
-  _ <- reserved "then"
+  _ <- symbol "then"
   consequent <- expression
-  _ <- reserved "else"
+  _ <- symbol "else"
   alternate <- expression
   return $ IfThenElse predicate consequent alternate
 
@@ -108,22 +127,24 @@ term =
             parens expression
           ]
 
-table :: OperatorTable String () Identity Expression
-table = [[binary "" FunctionApplication AssocLeft]]
-  where
-    binary name fun = Infix (do reservedOp name; return fun)
-
 expression :: Parser Expression
-expression = buildExpressionParser table term
+expression = makeExprParser term operatorTable
+
+operatorTable :: [[Operator Parser Expression]]
+operatorTable = [[binary "" FunctionApplication]]
+  where
+    binary name f = InfixL (f <$ symbol name)
 
 moduleParser :: Parser Module
-moduleParser = Module <$> semiSep1 binding
+moduleParser = do
+  m <- Module <$> semiSep1 binding
+  return m
   where
     binding = do
       name <- identifier
-      _ <- reservedOp "="
+      _ <- symbol "="
       e <- expression
       return (name, e)
 
-parseModule :: String -> Either ParseError Module
-parseModule = runParser moduleParser () "stdin"
+parseModule :: String -> String -> Either (ParseErrorBundle String Void) Module
+parseModule source input = runParser moduleParser source input

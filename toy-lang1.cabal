@@ -25,6 +25,7 @@ executable toy-lang1
                      , Parser
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14
-                     , parsec
+                     , megaparsec
+                     , parser-combinators
   hs-source-dirs:      src
   default-language:    Haskell2010
