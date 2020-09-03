@@ -1,6 +1,5 @@
 module Main where
 
-import AST
 import qualified Compiler
 import qualified JS
 import qualified Parser

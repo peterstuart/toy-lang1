@@ -1,9 +1,9 @@
 module Parser where
 
 import AST
+import Control.Monad (void)
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Data.Functor (($>))
-import Data.Functor.Identity (Identity)
 import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -11,14 +11,17 @@ import qualified Text.Megaparsec.Char.Lexer as Lexer
 
 type Parser = Parsec Void String
 
-spaceConsumer :: Parser ()
-spaceConsumer = Lexer.space space1 empty empty
+sc :: Parser ()
+sc = Lexer.space (void $ some (char ' ')) empty empty
+
+scn :: Parser ()
+scn = Lexer.space space1 empty empty
 
 lexeme :: Parser a -> Parser a
-lexeme = Lexer.lexeme spaceConsumer
+lexeme = Lexer.lexeme sc
 
 symbol :: String -> Parser String
-symbol = Lexer.symbol spaceConsumer
+symbol = Lexer.symbol sc
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -82,25 +85,30 @@ variable :: Parser Expression
 variable = Variable <$> identifier
 
 binding :: Parser Binding
-binding = do
+binding = Lexer.lineFold scn $ \sc' -> do
   v <- identifier
-  _ <- symbol "="
+  _ <- Lexer.symbol sc' "="
   e <- expression
   return $ Binding v e
 
 letExpression :: Parser Expression
 letExpression = do
-  _ <- symbol "let"
-  b <- commaSep1 binding
-  _ <- symbol "in"
-  e <- expression
+  b <- indentedBindings
+  e <- inExpr
   return $ Let b e
+  where
+    indentedBindings =
+      Lexer.indentBlock
+        scn
+        (symbol "let" $> Lexer.IndentSome Nothing pure binding)
+    inExpr = Lexer.lineFold scn $ \sc' ->
+      Lexer.symbol sc' "in" *> expression
 
 function :: Parser Expression
-function = do
+function = Lexer.lineFold scn $ \sc' -> do
   _ <- symbol "\\"
   paramNames <- many identifier
-  _ <- symbol "->"
+  _ <- Lexer.symbol sc' "->"
   e <- expression
   return $ Function paramNames e
 
@@ -137,7 +145,7 @@ operatorTable = [[binary "" FunctionApplication]]
     binary name f = InfixL (f <$ symbol name)
 
 moduleParser :: Parser Module
-moduleParser = Module <$> semiSep1 binding
+moduleParser = Module <$> (many (Lexer.nonIndented scn binding))
 
 parseModule :: String -> String -> Either (ParseErrorBundle String Void) Module
-parseModule source input = runParser moduleParser source input
+parseModule = runParser moduleParser
