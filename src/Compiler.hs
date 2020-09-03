@@ -20,14 +20,12 @@ exprToJS expr = case expr of
     JS.FunctionApplication (JS.Function [] (bindingToJS <$> bindings) (exprToJS expr)) []
   Function params e ->
     case params of
-      p:[] -> JS.Function [p] [] (exprToJS e)
-      p:ps -> JS.Function [p] [] (exprToJS $ Function ps e)
+      p : [] -> JS.Function [p] [] (exprToJS e)
+      p : ps -> JS.Function [p] [] (exprToJS $ Function ps e)
   FunctionApplication f param ->
     JS.FunctionApplication (exprToJS f) [exprToJS param]
   IfThenElse predicate consequent alternate ->
     JS.Ternary (exprToJS predicate) (exprToJS consequent) (exprToJS alternate)
 
 moduleToJS :: Module -> JS.Module
-moduleToJS (Module declarations) = JS.Module $ declarationToStatement <$> declarations
-  where
-    declarationToStatement (name, expr) = JS.Let name (exprToJS expr)
+moduleToJS (Module bindings) = JS.Module $ bindingToJS <$> bindings

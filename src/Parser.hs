@@ -81,6 +81,13 @@ boolLiteral = true <|> false
 variable :: Parser Expression
 variable = Variable <$> identifier
 
+binding :: Parser Binding
+binding = do
+  v <- identifier
+  _ <- symbol "="
+  e <- expression
+  return $ Binding v e
+
 letExpression :: Parser Expression
 letExpression = do
   _ <- symbol "let"
@@ -88,12 +95,6 @@ letExpression = do
   _ <- symbol "in"
   e <- expression
   return $ Let b e
-  where
-    binding = do
-      v <- identifier
-      _ <- symbol "="
-      e <- expression
-      return $ Binding v e
 
 function :: Parser Expression
 function = do
@@ -136,15 +137,7 @@ operatorTable = [[binary "" FunctionApplication]]
     binary name f = InfixL (f <$ symbol name)
 
 moduleParser :: Parser Module
-moduleParser = do
-  m <- Module <$> semiSep1 binding
-  return m
-  where
-    binding = do
-      name <- identifier
-      _ <- symbol "="
-      e <- expression
-      return (name, e)
+moduleParser = Module <$> semiSep1 binding
 
 parseModule :: String -> String -> Either (ParseErrorBundle String Void) Module
 parseModule source input = runParser moduleParser source input
