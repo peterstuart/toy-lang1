@@ -1,6 +1,6 @@
 # toy-lang1
 
-A Haskell-ish language that compiles to JS.
+A language with a Haskell-ish syntax that compiles to JS.
 
 ## Development
 
