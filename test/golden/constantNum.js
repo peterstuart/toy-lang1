@@ -1,0 +1,1 @@
+const constantNum = 3.0;

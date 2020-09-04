@@ -25,3 +25,15 @@ executable tlc
                      , toy-lang1
   hs-source-dirs:      app
   default-language:    Haskell2010
+
+test-suite toy-lang1-test
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Test.hs
+  build-depends:       base >= 4.13 && < 4.14
+                     , toy-lang1
+                     , bytestring
+                     , filepath
+                     , tasty
+                     , tasty-golden
