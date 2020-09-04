@@ -16,5 +16,5 @@ data Expression
   deriving (Eq, Show)
 
 data Module
-  = Module [(String, Expression)]
+  = Module [Binding]
   deriving (Eq, Show)

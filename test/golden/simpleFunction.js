@@ -1,0 +1,1 @@
+const greaterThan = ((a) => {return ((b) => {return not(lessThan(a)(b))})});
